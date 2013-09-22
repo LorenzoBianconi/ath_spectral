@@ -1,0 +1,1 @@
+../../qtProjects/athScan/athScan.pro

@@ -11,6 +11,7 @@ class AthScan;
 
 #define SPECTRAL_HT20_NUM_BINS      56
 #define SPECTRAL_HT20_40_NUM_BINS   128
+#define DELTA   (SPECTRAL_HT20_40_NUM_BINS / 2)
 
 enum nl80211_channel_type {
     NL80211_CHAN_NO_HT,
@@ -33,7 +34,6 @@ struct fft_sample {
     struct fft_sample_tlv tlv;
     uint16_t freq;
     uint64_t tsf;
-	enum nl80211_channel_type chtype;
 
 	union {
 		struct {
@@ -84,11 +84,13 @@ private slots:
 
 private:
     int parse_scan_file(QString);
-    int draw_spectrum();
+    int draw_spectrum(quint32, quint32);
     void compute_bin_pwr(struct fft_sample, QPolygonF&);
 
     Ui::AthScan *ui;
     struct scan_sample *_fft_data;
+
+    quint32 _min_freq, _max_freq;
 };
 
 #endif // ATHSCAN_H

@@ -21,6 +21,8 @@ AthScan::AthScan(QWidget *parent) :
     ui->setupUi(this);
 
     _fft_data = NULL;
+    _min_freq = 2400;
+    _max_freq = 6000;
 
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(exit()));
     connect(ui->openButton, SIGNAL(clicked()), this, SLOT(open_scan_file()));
@@ -52,6 +54,7 @@ AthScan::~AthScan()
 
 int AthScan::parse_scan_file(QString file_name)
 {
+    quint32 min_freq = ~0, max_freq = 0;
     QFile scan_file(file_name);
     if (!scan_file.open(QIODevice::ReadOnly))
         return -1;
@@ -62,9 +65,9 @@ int AthScan::parse_scan_file(QString file_name)
     struct scan_sample *scan_data = _fft_data;
     while (i < buffer.size()) {
         struct fft_sample *sample = (struct fft_sample *)(buffer.data() + i);
+        enum fft_sample_type type = (enum fft_sample_type) qFromBigEndian((quint32) sample->tlv.type);
 
-        if (sample->tlv.type != FFT_SAMPLE_HT20_40 &&
-            sample->tlv.type != FFT_SAMPLE_HT20)
+        if (type != FFT_SAMPLE_HT20_40 && type != FFT_SAMPLE_HT20)
             return -1;
 
         quint32 len = sizeof (struct fft_sample_tlv) + qFromBigEndian(sample->tlv.length);
@@ -78,8 +81,13 @@ int AthScan::parse_scan_file(QString file_name)
         memset(data, 0, sizeof(*data));
         memcpy(&data->data, &sample->tlv, len);
         data->data.freq = qFromBigEndian(sample->freq);
+        if (data->data.freq < min_freq)
+            min_freq = data->data.freq;
+        else if (data->data.freq > max_freq)
+            max_freq = data->data.freq;
 
-        if (sample->tlv.type != FFT_SAMPLE_HT20_40) {
+        data->data.tlv.type = type;
+        if (type == FFT_SAMPLE_HT20_40) {
             data->data.ht20_40.lower_max_mag = qFromBigEndian(sample->ht20_40.lower_max_mag);
             data->data.ht20_40.upper_max_mag = qFromBigEndian(sample->ht20_40.upper_max_mag);
         } else
@@ -95,6 +103,10 @@ int AthScan::parse_scan_file(QString file_name)
     }
 
     scan_file.close();
+
+    _min_freq = min_freq;
+    _max_freq = max_freq;
+
 
     return 0;
 }
@@ -118,15 +130,29 @@ void AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
 {
     if (fft_sample.tlv.type == FFT_SAMPLE_HT20_40) {
         quint32 lower_datasquaresum = 0, upper_datasquaresum = 0;
-        for (int i = 0; i < SPECTRAL_HT20_40_NUM_BINS / 2; i++) {
+        for (int i = 0; i < DELTA; i++) {
             int lower_data = fft_sample.ht20_40.data[i] << fft_sample.ht20_40.max_exp;
-            int upper_data = fft_sample.ht20_40.data[i + SPECTRAL_HT20_40_NUM_BINS / 2] << fft_sample.ht20_40.max_exp;
+            int upper_data = fft_sample.ht20_40.data[i + DELTA] << fft_sample.ht20_40.max_exp;
             lower_data *= lower_data;
             upper_data *= upper_data;
             lower_datasquaresum += lower_data;
             upper_datasquaresum += upper_data;
         }
-        for (int i = 0; i < SPECTRAL_HT20_40_NUM_BINS / 2; i++) {
+        for (int i = 0; i < DELTA; i++) {
+            float freq1 = fft_sample.freq - 10.0 + ((20.0 * i) / DELTA);
+            float freq2 = fft_sample.freq + 10.0 + ((20.0 * i) / DELTA);
+            int lower_data = fft_sample.ht20_40.data[i] << fft_sample.ht20_40.max_exp;
+            if (lower_data == 0)
+                lower_data = 1;
+            int upper_data = fft_sample.ht20_40.data[i + DELTA] << fft_sample.ht20_40.max_exp;
+            if (upper_data == 0)
+                upper_data = 1;
+            float lower_pwr = fft_sample.ht20_40.lower_nf + fft_sample.ht20_40.lower_rssi +
+                              20 * log10f(lower_data) - log10f(lower_datasquaresum) * 10;
+            sample += QPointF(freq1, lower_pwr);
+            float upper_pwr = fft_sample.ht20_40.upper_nf + fft_sample.ht20_40.upper_rssi +
+                              20 * log10f(upper_data) - log10f(upper_datasquaresum) * 10;
+            sample += QPointF(freq2, upper_pwr);
         }
     } else {
         quint32 datasquaresum = 0;
@@ -147,7 +173,7 @@ void AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
     }
 }
 
-int AthScan::draw_spectrum()
+int AthScan::draw_spectrum(quint32 min_freq, quint32 max_freq)
 {
     QPolygonF fft_samples;
 
@@ -155,6 +181,10 @@ int AthScan::draw_spectrum()
     fft_curve->setTitle("FFT Samples");
     fft_curve->setPen(Qt::blue, 4);
     fft_curve->setStyle(QwtPlotCurve::Dots);
+
+    ui->fftPlot->setAxisScale(QwtPlot::xBottom, min_freq, max_freq);
+    ui->minFreqSpinBox->setValue(min_freq);
+    ui->maxFreqSpinBox->setValue(max_freq);
 
     for (struct scan_sample *data = _fft_data; data; data = data->next)
         compute_bin_pwr(data->data, fft_samples);
@@ -174,7 +204,7 @@ int AthScan::open_scan_file()
             QMessageBox::information(0,"error","error parsing fft data");
             return -1;
         }
-        draw_spectrum();
+        draw_spectrum(_min_freq - 20, _max_freq + 20);
     }
     return 0;
 }

@@ -1,5 +1,5 @@
 diff --git a/drivers/net/wireless/ath/ath9k/ath9k.h b/drivers/net/wireless/ath/ath9k/ath9k.h
-index 2ee35f6..17c0bdc 100644
+index 2ee35f6..bf7f6ca 100644
 --- a/drivers/net/wireless/ath/ath9k/ath9k.h
 +++ b/drivers/net/wireless/ath/ath9k/ath9k.h
 @@ -768,6 +768,11 @@ struct ath_softc {
@@ -14,7 +14,7 @@ index 2ee35f6..17c0bdc 100644
  
  #ifdef CONFIG_PM_SLEEP
  	atomic_t wow_got_bmiss_intr;
-@@ -875,36 +880,53 @@ static inline u8 spectral_bitmap_weight(u8 *bins)
+@@ -875,32 +880,49 @@ static inline u8 spectral_bitmap_weight(u8 *bins)
   * TODO: this might need rework when switching to nl80211-based
   * interface.
   */
@@ -47,10 +47,8 @@ index 2ee35f6..17c0bdc 100644
 -	u8 bitmap_weight;
 -
  	__be64 tsf;
--
+ 
 -	u8 data[SPECTRAL_HT20_NUM_BINS];
-+	enum nl80211_channel_type chtype;
-+
 +	union {
 +		struct {
 +			s8 rssi;
@@ -80,12 +78,7 @@ index 2ee35f6..17c0bdc 100644
 +	};
  } __packed;
  
--void ath9k_tasklet(unsigned long data);
--int ath_cabq_update(struct ath_softc *);
-+void ath9k_tasklet(unsigned long data); int ath_cabq_update(struct ath_softc *);
- 
- static inline void ath_read_cachesize(struct ath_common *common, int *csz)
- {
+ void ath9k_tasklet(unsigned long data);
 diff --git a/drivers/net/wireless/ath/ath9k/calib.c b/drivers/net/wireless/ath/ath9k/calib.c
 index 5e8219a..d09eaeb 100644
 --- a/drivers/net/wireless/ath/ath9k/calib.c
@@ -190,10 +183,10 @@ index e4f6590..dc7163e 100644
  	case SPECTRAL_DISABLED:
  		sc->spec_config.enabled = 0;
 diff --git a/drivers/net/wireless/ath/ath9k/recv.c b/drivers/net/wireless/ath/ath9k/recv.c
-index 4ee472a..0fb5259 100644
+index 4ee472a..b83f2e7 100644
 --- a/drivers/net/wireless/ath/ath9k/recv.c
 +++ b/drivers/net/wireless/ath/ath9k/recv.c
-@@ -972,14 +972,12 @@ static int ath_process_fft(struct ath_softc *sc, struct ieee80211_hdr *hdr,
+@@ -972,14 +972,13 @@ static int ath_process_fft(struct ath_softc *sc, struct ieee80211_hdr *hdr,
  {
  #ifdef CONFIG_ATH9K_DEBUGFS
  	struct ath_hw *ah = sc->sc_ah;
@@ -208,10 +201,11 @@ index 4ee472a..0fb5259 100644
  	int dc_pos;
 -	u16 length, max_magnitude;
 +	u16 length;
++	enum nl80211_channel_type chtype;
  
  	/* AR9280 and before report via ATH9K_PHYERR_RADAR, AR93xx and newer
  	 * via ATH9K_PHYERR_SPECTRAL. Haven't seen ATH9K_PHYERR_FALSE_RADAR_EXT
-@@ -997,45 +995,50 @@ static int ath_process_fft(struct ath_softc *sc, struct ieee80211_hdr *hdr,
+@@ -997,45 +996,50 @@ static int ath_process_fft(struct ath_softc *sc, struct ieee80211_hdr *hdr,
  	if (!(radar_info->pulse_bw_info & SPECTRAL_SCAN_BITMASK))
  		return 0;
  
@@ -232,19 +226,19 @@ index 4ee472a..0fb5259 100644
 -	fft_sample.tlv.type = ATH_FFT_SAMPLE_HT20;
 -	length = sizeof(fft_sample) - sizeof(fft_sample.tlv);
 -	fft_sample.tlv.length = __cpu_to_be16(length);
-+	fft_data.tlv.type = sc->spec_params.type;
++	fft_data.tlv.type = __cpu_to_be32(sc->spec_params.type);
 +	length = sizeof(fft_data) - sizeof(fft_data.tlv);
 +	fft_data.tlv.length = __cpu_to_be16(length);
 +
 +	fft_data.freq = __cpu_to_be16(ah->curchan->chan->center_freq);
 +	fft_data.tsf = __cpu_to_be64(tsf);
-+	fft_data.chtype = cfg80211_get_chandef_type(&sc->hw->conf.chandef);
  
 -	fft_sample.freq = __cpu_to_be16(ah->curchan->chan->center_freq);
 -	fft_sample.rssi = fix_rssi_inv_only(rs->rs_rssi_ctl0);
 -	fft_sample.noise = ah->noise;
-+	if ((fft_data.chtype == NL80211_CHAN_HT40MINUS) ||
-+	    (fft_data.chtype == NL80211_CHAN_HT40PLUS))
++	chtype = cfg80211_get_chandef_type(&sc->hw->conf.chandef);
++	if ((chtype == NL80211_CHAN_HT40MINUS) ||
++	    (chtype == NL80211_CHAN_HT40PLUS))
 +		data = (u8 *) fft_data.ht20_40.data;
 +	else
 +		data = (u8 *) fft_data.ht20.data;
@@ -285,7 +279,7 @@ index 4ee472a..0fb5259 100644
  		break;
  	default:
  		return 1;
-@@ -1044,23 +1047,68 @@ static int ath_process_fft(struct ath_softc *sc, struct ieee80211_hdr *hdr,
+@@ -1044,23 +1048,68 @@ static int ath_process_fft(struct ath_softc *sc, struct ieee80211_hdr *hdr,
  	/* DC value (value in the middle) is the blind spot of the spectral
  	 * sample and invalid, interpolate it.
  	 */
@@ -307,8 +301,8 @@ index 4ee472a..0fb5259 100644
 +	dc_pos = sc->spec_params.num_bins / 2;
 +	data[dc_pos] = (data[dc_pos + 1] + data[dc_pos - 1]) / 2;
 +
-+	if ((fft_data.chtype == NL80211_CHAN_HT40MINUS) ||
-+	    (fft_data.chtype == NL80211_CHAN_HT40PLUS)) {
++	if ((chtype == NL80211_CHAN_HT40MINUS) ||
++	    (chtype == NL80211_CHAN_HT40PLUS)) {
 +		u16 lower_max_mag, upper_max_mag;
 +		s16 nf_ext;
 +		struct ath_ht20_40_mag_info *mag_info;
@@ -324,7 +318,7 @@ index 4ee472a..0fb5259 100644
 +		lower_max_mag = spectral_max_magnitude(mag_info->lower_bins);
 +		upper_max_mag = spectral_max_magnitude(mag_info->upper_bins);
 +
-+		if (fft_data.chtype == NL80211_CHAN_HT40PLUS) {
++		if (chtype == NL80211_CHAN_HT40PLUS) {
 +			fft_data.ht20_40.lower_rssi =
 +				fix_rssi_inv_only(rs->rs_rssi_ctl0);
 +			fft_data.ht20_40.upper_rssi =

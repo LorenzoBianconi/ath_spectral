@@ -85,7 +85,7 @@ private slots:
 private:
     int parse_scan_file(QString);
     int draw_spectrum(quint32, quint32);
-    void compute_bin_pwr(struct fft_sample, QPolygonF&);
+    int compute_bin_pwr(struct fft_sample, QPolygonF&);
 
     Ui::AthScan *ui;
     struct scan_sample *_fft_data;

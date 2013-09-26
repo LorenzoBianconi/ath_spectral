@@ -32,7 +32,7 @@ AthScan::AthScan(QWidget *parent) :
     connect(ui->maxPwrSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
 
     /* init graph parameters*/
-    ui->fftPlot->setCanvasBackground(Qt::darkGray);
+    ui->fftPlot->setCanvasBackground(Qt::black);
     ui->fftPlot->setAxisTitle(QwtPlot::xBottom, "Frequency [MHz]");
     ui->fftPlot->setAxisScale(QwtPlot::xBottom, 2412, 5825);
     ui->fftPlot->setAxisTitle(QwtPlot::yLeft, "Pwr [dbm]");
@@ -126,7 +126,7 @@ int AthScan::scale_axis()
     return 0;
 }
 
-void AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
+int AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
 {
     if (fft_sample.tlv.type == FFT_SAMPLE_HT20_40) {
         quint32 lower_datasquaresum = 0, upper_datasquaresum = 0;
@@ -138,6 +138,10 @@ void AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
             lower_datasquaresum += lower_data;
             upper_datasquaresum += upper_data;
         }
+
+        qDebug() << "lower_rssi: " << fft_sample.ht20_40.lower_rssi << " lower_nf: " << fft_sample.ht20_40.lower_nf;
+        qDebug() << "upper_rssi: " << fft_sample.ht20_40.upper_rssi << " upper_nf: " << fft_sample.ht20_40.upper_nf;
+
         for (int i = 0; i < DELTA; i++) {
             float freq1 = fft_sample.freq - 10.0 + ((20.0 * i) / DELTA);
             float freq2 = fft_sample.freq + 10.0 + ((20.0 * i) / DELTA);
@@ -153,6 +157,8 @@ void AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
             float upper_pwr = fft_sample.ht20_40.upper_nf + fft_sample.ht20_40.upper_rssi +
                               20 * log10f(upper_data) - log10f(upper_datasquaresum) * 10;
             sample += QPointF(freq2, upper_pwr);
+
+            qDebug() << "freq1: " << freq1 << " ampl: " << lower_pwr << " freq2: " << freq2 << " ampl: " << upper_pwr;
         }
     } else {
         quint32 datasquaresum = 0;
@@ -162,6 +168,8 @@ void AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
             datasquaresum += data;
         }
 
+        qDebug() << "rssi: " << fft_sample.ht20.rssi << " nf: " << fft_sample.ht20.nf;
+
         for (int i = 0; i < SPECTRAL_HT20_NUM_BINS; i++) {
             float freq = fft_sample.freq - 10.0 + ((20.0 * i) / SPECTRAL_HT20_NUM_BINS);
             int data = fft_sample.ht20.data[i] << fft_sample.ht20.max_exp;
@@ -169,8 +177,12 @@ void AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
                 data = 1;
             float pwr = fft_sample.ht20.nf + fft_sample.ht20.rssi + 20 * log10f(data) - log10f(datasquaresum) * 10;
             sample += QPointF(freq, pwr);
+
+            qDebug() << "freq: " << freq << "ampl: " << pwr;
         }
     }
+
+    return 0;
 }
 
 int AthScan::draw_spectrum(quint32 min_freq, quint32 max_freq)
@@ -179,7 +191,7 @@ int AthScan::draw_spectrum(quint32 min_freq, quint32 max_freq)
 
     QwtPlotCurve *fft_curve = new QwtPlotCurve();
     fft_curve->setTitle("FFT Samples");
-    fft_curve->setPen(Qt::blue, 4);
+    fft_curve->setPen(Qt::blue, 2);
     fft_curve->setStyle(QwtPlotCurve::Dots);
 
     ui->fftPlot->setAxisScale(QwtPlot::xBottom, min_freq, max_freq);

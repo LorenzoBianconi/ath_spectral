@@ -20,52 +20,63 @@ enum nl80211_channel_type {
     NL80211_CHAN_HT40PLUS
 };
 
-enum fft_sample_type {
-	FFT_SAMPLE_HT20 = 1,
-    FFT_SAMPLE_HT20_40
+enum ath_fft_sample_type {
+    ATH_FFT_SAMPLE_HT20 = 1,
+    ATH_FFT_SAMPLE_HT20_40
 };
 
 struct fft_sample_tlv {
-    enum fft_sample_type type;
+    uint8_t type;
     uint16_t length;
-}  __attribute__((packed));
+} __attribute__((packed));
 
-struct fft_sample {
+struct fft_sample_ht20 {
     struct fft_sample_tlv tlv;
+
+    uint8_t max_exp;
+
     uint16_t freq;
+    int8_t rssi;
+    int8_t noise;
+
+    uint16_t max_magnitude;
+    uint8_t max_index;
+    uint8_t bitmap_weight;
+
     uint64_t tsf;
 
-	union {
-		struct {
-            int8_t rssi;
-            int8_t nf;
+    uint8_t data[SPECTRAL_HT20_NUM_BINS];
+} __attribute__((packed));
 
-            uint8_t data[SPECTRAL_HT20_NUM_BINS];
-            uint16_t max_mag;
-            uint8_t max_idx;
-            uint8_t bitmap_w;
-            uint8_t max_exp;
-		} ht20;
-		struct {
-            int8_t lower_rssi;
-            int8_t upper_rssi;
-            int8_t lower_nf;
-            int8_t upper_nf;
+struct fft_sample_ht20_40 {
+    struct fft_sample_tlv tlv;
 
-            uint8_t data[SPECTRAL_HT20_40_NUM_BINS];
-            uint16_t lower_max_mag;
-            uint16_t upper_max_mag;
-            uint8_t lower_max_idx;
-            uint8_t upper_max_idx;
-            uint8_t lower_bitmap_w;
-            uint8_t upper_bitmap_w;
-            uint8_t max_exp;
-		} ht20_40;
-	};
+    uint8_t max_exp;
+
+    uint16_t freq;
+
+    int8_t lower_rssi;
+    int8_t upper_rssi;
+
+    uint64_t tsf;
+
+    int8_t lower_noise;
+    int8_t upper_noise;
+
+    uint16_t lower_max_magnitude;
+    uint16_t upper_max_magnitude;
+
+    uint8_t lower_max_index;
+    uint8_t upper_max_index;
+
+    uint8_t lower_bitmap_weight;
+    uint8_t upper_bitmap_weight;
+
+    uint8_t data[SPECTRAL_HT20_40_NUM_BINS];
 } __attribute__((packed));
 
 struct scan_sample {
-    struct fft_sample data;
+    uint8_t *data;
     struct scan_sample *next;
 };
 
@@ -85,7 +96,7 @@ private slots:
 private:
     int parse_scan_file(QString);
     int draw_spectrum(quint32, quint32);
-    int compute_bin_pwr(struct fft_sample, QPolygonF&);
+    int compute_bin_pwr(fft_sample_tlv *, QPolygonF&);
 
     Ui::AthScan *ui;
     struct scan_sample *_fft_data;

@@ -62,36 +62,56 @@ int AthScan::parse_scan_file(QString file_name)
     QByteArray buffer = scan_file.readAll();
 
     int i = 0;
-    struct scan_sample *scan_data = _fft_data;
+    scan_sample *scan_data = _fft_data;
     while (i < buffer.size()) {
-        struct fft_sample *sample = (struct fft_sample *)(buffer.data() + i);
-        enum fft_sample_type type = (enum fft_sample_type) qFromBigEndian((quint32) sample->tlv.type);
+        fft_sample_tlv *tlv = (fft_sample_tlv *)(buffer.data() + i);
+        uint8_t *payload = (uint8_t *)(tlv + 1);
 
-        if (type != FFT_SAMPLE_HT20_40 && type != FFT_SAMPLE_HT20)
+        if (tlv->type != ATH_FFT_SAMPLE_HT20 &&
+            tlv->type != ATH_FFT_SAMPLE_HT20_40)
             return -1;
 
-        quint32 len = sizeof (struct fft_sample_tlv) + qFromBigEndian(sample->tlv.length);
-        if (len != sizeof(struct fft_sample))
+        quint32 len = sizeof (fft_sample_tlv) + qFromBigEndian(tlv->length);
+        if (len != sizeof(fft_sample_ht20) &&
+            len != sizeof(fft_sample_ht20_40))
             return -1;
 
-        struct scan_sample *data = new(struct scan_sample);
+        scan_sample *data = new(scan_sample);
         if (!data)
             continue;
+        data->next = NULL;
+        data->data = new(uint8_t[len]);
+        if (!data->data)
+            continue;
+        memcpy(data->data, tlv, len);
 
-        memset(data, 0, sizeof(*data));
-        memcpy(&data->data, &sample->tlv, len);
-        data->data.freq = qFromBigEndian(sample->freq);
-        if (data->data.freq < min_freq)
-            min_freq = data->data.freq;
-        else if (data->data.freq > max_freq)
-            max_freq = data->data.freq;
+        quint16 freq = qFromBigEndian(*(uint16_t *)(payload + 1));
 
-        data->data.tlv.type = type;
-        if (type == FFT_SAMPLE_HT20_40) {
-            data->data.ht20_40.lower_max_mag = qFromBigEndian(sample->ht20_40.lower_max_mag);
-            data->data.ht20_40.upper_max_mag = qFromBigEndian(sample->ht20_40.upper_max_mag);
-        } else
-            data->data.ht20.max_mag = qFromBigEndian(sample->ht20.max_mag);
+        if (tlv->type == ATH_FFT_SAMPLE_HT20_40) {
+            fft_sample_ht20_40 *fft_data, *sample;
+
+            fft_data = (fft_sample_ht20_40 *) data->data;
+            sample = (fft_sample_ht20_40 *) tlv;
+
+            fft_data->freq = freq;
+
+            fft_data->lower_max_magnitude = qFromBigEndian(sample->lower_max_magnitude);
+            fft_data->upper_max_magnitude = qFromBigEndian(sample->upper_max_magnitude);
+        } else {
+            fft_sample_ht20 *fft_data, *sample;
+
+            fft_data = (fft_sample_ht20 *) data->data;
+            sample = (fft_sample_ht20 *) tlv;
+
+            fft_data->freq = freq;
+
+            fft_data->max_magnitude = qFromBigEndian(sample->max_magnitude);
+        }
+
+        if (freq < min_freq)
+            min_freq = freq;
+        else if (freq > max_freq)
+            max_freq = freq;
 
         if (scan_data)
             scan_data->next = data;
@@ -106,7 +126,6 @@ int AthScan::parse_scan_file(QString file_name)
 
     _min_freq = min_freq;
     _max_freq = max_freq;
-
 
     return 0;
 }
@@ -126,35 +145,37 @@ int AthScan::scale_axis()
     return 0;
 }
 
-int AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
+int AthScan::compute_bin_pwr(fft_sample_tlv *tlv, QPolygonF &sample)
 {
-    if (fft_sample.tlv.type == FFT_SAMPLE_HT20_40) {
+    if (tlv->type == ATH_FFT_SAMPLE_HT20_40) {
         quint32 lower_datasquaresum = 0, upper_datasquaresum = 0;
+        fft_sample_ht20_40 *fft_data = (fft_sample_ht20_40 *) tlv;
+
         for (int i = 0; i < DELTA; i++) {
-            int lower_data = fft_sample.ht20_40.data[i] << fft_sample.ht20_40.max_exp;
-            int upper_data = fft_sample.ht20_40.data[i + DELTA] << fft_sample.ht20_40.max_exp;
+            int lower_data = fft_data->data[i] << fft_data->max_exp;
+            int upper_data = fft_data->data[i + DELTA] << fft_data->max_exp;
             lower_data *= lower_data;
             upper_data *= upper_data;
             lower_datasquaresum += lower_data;
             upper_datasquaresum += upper_data;
         }
 
-        qDebug() << "lower_rssi: " << fft_sample.ht20_40.lower_rssi << " lower_nf: " << fft_sample.ht20_40.lower_nf;
-        qDebug() << "upper_rssi: " << fft_sample.ht20_40.upper_rssi << " upper_nf: " << fft_sample.ht20_40.upper_nf;
+        qDebug() << "lower_rssi: " << fft_data->lower_rssi << " lower_nf: " << fft_data->lower_noise;
+        qDebug() << "upper_rssi: " << fft_data->upper_rssi << " upper_nf: " << fft_data->upper_noise;
 
         for (int i = 0; i < DELTA; i++) {
-            float freq1 = fft_sample.freq - 10.0 + ((20.0 * i) / DELTA);
-            float freq2 = fft_sample.freq + 10.0 + ((20.0 * i) / DELTA);
-            int lower_data = fft_sample.ht20_40.data[i] << fft_sample.ht20_40.max_exp;
+            float freq1 = fft_data->freq - 10.0 + ((20.0 * i) / DELTA);
+            float freq2 = fft_data->freq + 10.0 + ((20.0 * i) / DELTA);
+            int lower_data = fft_data->data[i] << fft_data->max_exp;
             if (lower_data == 0)
                 lower_data = 1;
-            int upper_data = fft_sample.ht20_40.data[i + DELTA] << fft_sample.ht20_40.max_exp;
+            int upper_data = fft_data->data[i + DELTA] << fft_data->max_exp;
             if (upper_data == 0)
                 upper_data = 1;
-            float lower_pwr = fft_sample.ht20_40.lower_nf + fft_sample.ht20_40.lower_rssi +
+            float lower_pwr = fft_data->lower_noise + fft_data->lower_rssi +
                               20 * log10f(lower_data) - log10f(lower_datasquaresum) * 10;
             sample += QPointF(freq1, lower_pwr);
-            float upper_pwr = fft_sample.ht20_40.upper_nf + fft_sample.ht20_40.upper_rssi +
+            float upper_pwr = fft_data->upper_noise + fft_data->upper_rssi +
                               20 * log10f(upper_data) - log10f(upper_datasquaresum) * 10;
             sample += QPointF(freq2, upper_pwr);
 
@@ -162,20 +183,21 @@ int AthScan::compute_bin_pwr(struct fft_sample fft_sample, QPolygonF &sample)
         }
     } else {
         quint32 datasquaresum = 0;
+        fft_sample_ht20 *fft_data = (fft_sample_ht20 *) tlv;
         for (int i = 0; i < SPECTRAL_HT20_NUM_BINS; i++) {
-            int data = fft_sample.ht20.data[i] << fft_sample.ht20.max_exp;
+            int data = fft_data->data[i] << fft_data->max_exp;
             data *= data;
             datasquaresum += data;
         }
 
-        qDebug() << "rssi: " << fft_sample.ht20.rssi << " nf: " << fft_sample.ht20.nf;
+        qDebug() << "rssi: " << fft_data->rssi << " nf: " << fft_data->noise;
 
         for (int i = 0; i < SPECTRAL_HT20_NUM_BINS; i++) {
-            float freq = fft_sample.freq - 10.0 + ((20.0 * i) / SPECTRAL_HT20_NUM_BINS);
-            int data = fft_sample.ht20.data[i] << fft_sample.ht20.max_exp;
+            float freq = fft_data->freq - 10.0 + ((20.0 * i) / SPECTRAL_HT20_NUM_BINS);
+            int data = fft_data->data[i] << fft_data->max_exp;
             if (data == 0)
                 data = 1;
-            float pwr = fft_sample.ht20.nf + fft_sample.ht20.rssi + 20 * log10f(data) - log10f(datasquaresum) * 10;
+            float pwr = fft_data->noise + fft_data->rssi + 20 * log10f(data) - log10f(datasquaresum) * 10;
             sample += QPointF(freq, pwr);
 
             qDebug() << "freq: " << freq << "ampl: " << pwr;
@@ -198,8 +220,8 @@ int AthScan::draw_spectrum(quint32 min_freq, quint32 max_freq)
     ui->minFreqSpinBox->setValue(min_freq);
     ui->maxFreqSpinBox->setValue(max_freq);
 
-    for (struct scan_sample *data = _fft_data; data; data = data->next)
-        compute_bin_pwr(data->data, fft_samples);
+    for (scan_sample *data = _fft_data; data; data = data->next)
+        compute_bin_pwr((fft_sample_tlv *) data->data, fft_samples);
     fft_curve->setSamples(fft_samples);
     fft_curve->attach(ui->fftPlot);
 

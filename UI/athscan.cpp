@@ -9,6 +9,7 @@
 #include <QDebug>
 
 #include <qwt_plot.h>
+#include <qwt_plot_canvas.h>
 #include <qwt_plot_grid.h>
 #include <qwt_legend.h>
 #include <qwt_plot_curve.h>
@@ -24,7 +25,7 @@ AthScan::AthScan(QWidget *parent) :
     _min_freq = 2400;
     _max_freq = 6000;
 
-    connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(exit()));
+    connect(ui->clearButton, SIGNAL(clicked()), this, SLOT(clear()));
     connect(ui->openButton, SIGNAL(clicked()), this, SLOT(open_scan_file()));
     connect(ui->minFreqSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
     connect(ui->maxFreqSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
@@ -32,7 +33,11 @@ AthScan::AthScan(QWidget *parent) :
     connect(ui->maxPwrSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
 
     /* init graph parameters*/
-    ui->fftPlot->setCanvasBackground(Qt::black);
+    QwtPlotCanvas *canvas = new QwtPlotCanvas();
+    canvas->setPalette(Qt::black);
+    canvas->setBorderRadius(10);
+    ui->fftPlot->setCanvas(canvas);
+
     ui->fftPlot->setAxisTitle(QwtPlot::xBottom, "Frequency [MHz]");
     ui->fftPlot->setAxisScale(QwtPlot::xBottom, 2412, 5825);
     ui->fftPlot->setAxisTitle(QwtPlot::yLeft, "Pwr [dbm]");
@@ -243,11 +248,12 @@ int AthScan::open_scan_file()
     return 0;
 }
 
-int AthScan::exit()
+int AthScan::clear()
 {
     while (_fft_data) {
         struct scan_sample *fft_ptr = _fft_data;
         _fft_data = _fft_data->next;
+        free(fft_ptr->data);
         free(fft_ptr);
     }
 

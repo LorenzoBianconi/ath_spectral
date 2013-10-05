@@ -4,6 +4,10 @@
 #include <stdint.h>
 
 #include <QMainWindow>
+#include <qwt_plot_canvas.h>
+#include <qwt_plot_grid.h>
+#include <qwt_plot_marker.h>
+#include <qwt_plot_curve.h>
 
 namespace Ui {
 class AthScan;
@@ -13,6 +17,9 @@ class AthScan;
 #define SPECTRAL_HT20_40_NUM_BINS   128
 #define DELTA   (SPECTRAL_HT20_40_NUM_BINS / 2)
 
+/* ath9k data structure, please see
+ * drivers/net/wireless/ath/ath9k/ath9k.h
+ */
 enum nl80211_channel_type {
     NL80211_CHAN_NO_HT,
     NL80211_CHAN_HT20,
@@ -89,7 +96,7 @@ public:
     ~AthScan();
 
 private slots:
-    int clear();
+    int close();
     int open_scan_file();
     int scale_axis();
 
@@ -97,6 +104,13 @@ private:
     int parse_scan_file(QString);
     int draw_spectrum(quint32, quint32);
     int compute_bin_pwr(fft_sample_tlv *, QPolygonF&);
+    void set_label(QwtPlotMarker *, QString);
+    void keyPressEvent(QKeyEvent *);
+
+    QwtPlotCanvas *_canvas;
+    QwtPlotGrid *_grid;
+    QwtPlotMarker *_borderV, *_borderH;
+    QwtPlotCurve *_fft_curve;
 
     Ui::AthScan *ui;
     struct scan_sample *_fft_data;

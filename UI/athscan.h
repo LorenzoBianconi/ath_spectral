@@ -117,6 +117,7 @@ private:
     Ui::AthScan *ui;
     struct scan_sample *_fft_data;
 
+    QString _label;
     quint32 _min_freq, _max_freq;
 };
 

@@ -26,7 +26,7 @@ AthScan::AthScan(QWidget *parent) :
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(close()));
     connect(ui->clearButton, SIGNAL(clicked()), this, SLOT(clear()));
     connect(ui->openButton, SIGNAL(clicked()), this, SLOT(open_scan_file()));
-    connect(ui->minFreqSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
+    connect(ui->minFreqSpinBox, SIGNAL(editingFinished()),this, SLOT(scale_axis()));
     connect(ui->maxFreqSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
     connect(ui->minPwrSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
     connect(ui->maxPwrSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
@@ -288,7 +288,7 @@ int AthScan::draw_spectrum(quint32 min_freq, quint32 max_freq)
     QPolygonF fft_samples;
 
     _fft_curve = new QwtPlotCurve();
-    _fft_curve->setTitle("FFT Samples");
+    _fft_curve->setTitle(_label);
     _fft_curve->setPen(Qt::green, 2);
     _fft_curve->setStyle(QwtPlotCurve::Dots);
 
@@ -313,12 +313,16 @@ int AthScan::draw_spectrum(quint32 min_freq, quint32 max_freq)
 
 int AthScan::open_scan_file()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr(""));
-    if (!fileName.isEmpty()) {
-        if (parse_scan_file(fileName) < 0) {
+    QString file = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr(""));
+    if (!file.isEmpty()) {
+        if (parse_scan_file(file) < 0) {
             QMessageBox::information(0,"error","error parsing fft data");
             return -1;
         }
+        _label = QFileInfo(file).fileName();
+        qint32 idx = _label.lastIndexOf(".");
+        if (idx >= 0)
+            _label.chop(_label.size() - idx);
         draw_spectrum(_min_freq, _max_freq);
     }
     return 0;

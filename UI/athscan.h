@@ -97,6 +97,7 @@ public:
     ~AthScan();
 
 private slots:
+    int clear();
     int close();
     int open_scan_file();
     int scale_axis();

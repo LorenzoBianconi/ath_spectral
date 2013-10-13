@@ -24,6 +24,7 @@ AthScan::AthScan(QWidget *parent) :
     _max_freq = 6000;
 
     connect(ui->closeButton, SIGNAL(clicked()), this, SLOT(close()));
+    connect(ui->clearButton, SIGNAL(clicked()), this, SLOT(clear()));
     connect(ui->openButton, SIGNAL(clicked()), this, SLOT(open_scan_file()));
     connect(ui->minFreqSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
     connect(ui->maxFreqSpinBox, SIGNAL(editingFinished()), this, SLOT(scale_axis()));
@@ -191,8 +192,8 @@ int AthScan::parse_scan_file(QString file_name)
 
     scan_file.close();
 
-    _min_freq = min_freq - 20;
-    _max_freq = max_freq + 20;
+    _min_freq = min_freq - 40;
+    _max_freq = max_freq + 40;
 
     return 0;
 }
@@ -323,8 +324,11 @@ int AthScan::open_scan_file()
     return 0;
 }
 
-int AthScan::close()
+int AthScan::clear()
 {
+    _min_freq = 2400;
+    _max_freq = 6000;
+
     while (_fft_data) {
         struct scan_sample *fft_ptr = _fft_data;
         _fft_data = _fft_data->next;
@@ -332,6 +336,19 @@ int AthScan::close()
         free(fft_ptr);
     }
 
+    _fft_curve->detach();
+
+    ui->minFreqSpinBox->setValue(_min_freq);
+    ui->maxFreqSpinBox->setValue(_max_freq);
+
+    scale_axis();
+
+    return 0;
+}
+
+int AthScan::close()
+{
+    clear();
     qApp->exit();
 
     return 0;

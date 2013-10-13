@@ -242,8 +242,14 @@ int AthScan::compute_bin_pwr(fft_sample_tlv *tlv, QPolygonF &sample)
         qDebug() << "upper_rssi: " << fft_data->upper_rssi << " upper_noise: " << fft_data->upper_noise;
 
         for (qint32 i = 0; i < DELTA; i++) {
-            float freq1 = fft_data->freq - 10.0 + ((20.0 * i) / DELTA);
-            float freq2 = fft_data->freq + 10.0 + ((20.0 * i) / DELTA);
+            float lower_freq, upper_freq;
+            if (fft_data->channel_type == NL80211_CHAN_HT40PLUS) {
+                lower_freq = fft_data->freq - 10.0 + ((20.0 * i) / DELTA);
+                upper_freq = fft_data->freq + 10.0 + ((20.0 * i) / DELTA);
+            } else {
+                lower_freq = fft_data->freq - 30.0 + ((20.0 * i) / DELTA);
+                upper_freq = fft_data->freq - 10.0 + ((20.0 * i) / DELTA);
+            }
             qint32 lower_data = fft_data->data[i] << fft_data->max_exp;
             if (lower_data == 0)
                 lower_data = 1;
@@ -252,12 +258,12 @@ int AthScan::compute_bin_pwr(fft_sample_tlv *tlv, QPolygonF &sample)
                 upper_data = 1;
             float lower_pwr = fft_data->lower_noise + fft_data->lower_rssi +
                               20 * log10f(lower_data) - log10f(lower_datasquaresum) * 10;
-            sample += QPointF(freq1, lower_pwr);
+            sample += QPointF(lower_freq, lower_pwr);
             float upper_pwr = fft_data->upper_noise + fft_data->upper_rssi +
                               20 * log10f(upper_data) - log10f(upper_datasquaresum) * 10;
-            sample += QPointF(freq2, upper_pwr);
+            sample += QPointF(upper_freq, upper_pwr);
 
-            qDebug() << "freq1: " << freq1 << " ampl: " << lower_pwr << " freq2: " << freq2 << " ampl: " << upper_pwr;
+            qDebug() << "lower_freq: " << lower_freq << " ampl: " << lower_pwr << " upper_freq: " << upper_freq << " ampl: " << upper_pwr;
         }
     } else {
         quint32 datasquaresum = 0;

@@ -58,8 +58,7 @@ struct fft_sample_ht20 {
 struct fft_sample_ht20_40 {
     struct fft_sample_tlv tlv;
 
-    uint8_t max_exp;
-
+    uint8_t channel_type;
     uint16_t freq;
 
     int8_t lower_rssi;
@@ -78,6 +77,8 @@ struct fft_sample_ht20_40 {
 
     uint8_t lower_bitmap_weight;
     uint8_t upper_bitmap_weight;
+
+    uint8_t max_exp;
 
     uint8_t data[SPECTRAL_HT20_40_NUM_BINS];
 } __attribute__((packed));

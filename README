@@ -1,0 +1,95 @@
+ath_spectral
+============
+ath_spectral is a Qt-Qwt UI developed to draw FFT spectral samples gathered 
+from an Atheros NICs. AR92xx and AR93xx have the ability to report FFT data
+from the baseband, including:
+*) absolute magnitude (|i|+|q|, abs() for I/Q phase of the wireless signal)
+   for each FFT bin (56 for subcarries in HT20 mode and 128 in HT40 mode)
+*) an index indicating the strongest FFT bin
+*) the maximum signal magnitude for each sample
+
+This information can be used to create an open source spectrum analyzer
+or interference classifier
+
+build
+=====
+Qt (>=5.0) and Qwt libraries should be installed on the system
+Just type qmake and make to build the program
+$ qmake
+$ make
+
+This program has been tested using qwt-6.1.0 and qt-5.0.1
+
+frame format
+============
+FFT dara is reported as PHY error:
+
+*) HT20
+ 	0	1	2	3	4	5	6	7	8
+ 	+---------------------------------------------------------------+
+ 0	|	[7:0]: bin -28 magnitude (|i| + |q|) >> max_exp		|
+ 	+---------------------------------------------------------------+
+ 1	|	[7:0]: bin -27 magnitude (|i| + |q|) >> max_exp		|
+ 	+---------------------------------------------------------------+
+ 2-54	| 								|
+ 	+---------------------------------------------------------------+
+ 55	|	[7:0]: bin 27 magnitude (|i| + |q|) >> max_exp		|
+ 	+---------------------------------------------------------------+
+ 56	|	[7:0]: all_bins {max_magnite[1:0], bitmap_weight[5:0]}	|
+ 	+---------------------------------------------------------------+
+ 57	|		[7:0]: all_bins {max_magnite[9:2]}		|
+ 	+---------------------------------------------------------------+
+ 58	|	[7:0]: all_bins {max_index[5:0], max_magnite[11:10]}	|
+ 	+---------------------------------------------------------------+
+ 59	|			[3:0] max_exp				|
+ 	+---------------------------------------------------------------+
+   
+
+*) HT40
+ 	0	1	2	3	4	5	6	7	8
+ 	+---------------------------------------------------------------+
+ 0	|	[7:0]: bin -64 magnitude (|i| + |q|) >> max_exp		|
+ 	+---------------------------------------------------------------+
+ 1	|	[7:0]: bin -63 magnitude (|i| + |q|) >> max_exp		|
+ 	+---------------------------------------------------------------+
+ 2-125	| 								|
+ 	+---------------------------------------------------------------+
+ 127	|	[7:0]: bin 63 magnitude (|i| + |q|) >> max_exp		|
+ 	+---------------------------------------------------------------+
+ 128	|    [7:0]: lower_bins {max_magnite[1:0], bitmap_weight[5:0]}	|
+ 	+---------------------------------------------------------------+
+ 129	|		[7:0]: lower_bins {max_magnite[9:2]}		|
+ 	+---------------------------------------------------------------+
+ 130	|	[7:0]: lower_bins {max_index[5:0], max_magnite[11:10]}	|
+ 	+---------------------------------------------------------------+
+ 131	|    [7:0]: upper_bins {max_magnite[1:0], bitmap_weight[5:0]}	|
+ 	+---------------------------------------------------------------+
+ 132	|		[7:0]: upper_bins {max_magnite[9:2]}		|
+ 	+---------------------------------------------------------------+
+ 133	|	[7:0]: upper_bins {max_index[5:0], max_magnite[11:10]}	|
+ 	+---------------------------------------------------------------+
+ 134	|			[3:0] max_exp				|
+ 	+---------------------------------------------------------------+
+
+Riceved power computation
+=========================
+Assuming the noise floor is equal to -96dbm(*) and the magnitude of each sample
+in a 20MHz bin equals the RSSI, the received signal strength of each FFT bin
+can be computed as follow:
+
+*) HT20
+	power(i) = nf + RSSI + 10*log(b(i)^2) - bin_sum
+
+where:
+	- RSSI is computed on control chain 0
+	- b(i) is the magnitude in each bin, unscaled by max_exp
+	- bin_sum = 10*log(sum[i=1..56](b(i)^2)
+
+*) HT40
+for 40MHz channel, previous formula should be used for 64 bins of control and
+extension channels, keeping in mind for HT40+ mode the extension channel is
+above the primary one (lower=ctl, upper=ext) and for HT40- the extension
+channel is below the primary one (lower=ext, upper=ctl)
+
+(*) nf can differ from -96dbm due to noise and spikes leading to a different
+reported RSSI

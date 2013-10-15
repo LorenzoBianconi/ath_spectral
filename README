@@ -93,3 +93,5 @@ channel is below the primary one (lower=ext, upper=ctl)
 
 (*) nf can differ from -96dbm due to noise and spikes leading to a reduced
 reported RSSI
+
+(this document is based on https://wiki.freebsd.org/dev/ath_hal%284%29/SpectralScan, thx :))

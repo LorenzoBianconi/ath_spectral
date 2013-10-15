@@ -91,5 +91,5 @@ extension channels, keeping in mind for HT40+ mode the extension channel is
 above the primary one (lower=ctl, upper=ext) and for HT40- the extension
 channel is below the primary one (lower=ext, upper=ctl)
 
-(*) nf can differ from -96dbm due to noise and spikes leading to a different
+(*) nf can differ from -96dbm due to noise and spikes leading to a reduced
 reported RSSI

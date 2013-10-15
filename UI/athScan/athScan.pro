@@ -19,5 +19,7 @@ HEADERS  += athscan.h
 
 FORMS    += athscan.ui
 
-INCLUDEPATH += /usr/local/qwt-6.1.0/include
-LIBS += /usr/local/qwt-6.1.0/lib/libqwt.so.6
+
+LIBS += -L$$PWD/../qwt/lib/ -lqwt
+INCLUDEPATH += $$PWD/../qwt/src
+DEPENDPATH += $$PWD/../qwt/src

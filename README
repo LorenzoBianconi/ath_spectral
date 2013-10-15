@@ -13,10 +13,11 @@ or interference classifier
 
 build
 =====
-Qt (>=5.0) and Qwt libraries should be installed on the system
+Qt (>=5.0) should be installed on the system
 Just type qmake and make to build the program
 $ qmake
 $ make
+export LD_LIBRARY_PATH=${PWD}/qwt/lib/
 
 This program has been tested using qwt-6.1.0 and qt-5.0.1
 

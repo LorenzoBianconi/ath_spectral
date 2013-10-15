@@ -1,14 +1,14 @@
 ath_spectral
 ============
 ath_spectral is a Qt-Qwt UI developed to draw FFT spectral samples gathered 
-from an Atheros NICs. AR92xx and AR93xx have the ability to report FFT data
+from Atheros NICs. AR92xx and AR93xx have the ability to report FFT data
 from the baseband, including:
 *) absolute magnitude (|i|+|q|, abs() for I/Q phase of the wireless signal)
-   for each FFT bin (56 for subcarries in HT20 mode and 128 in HT40 mode)
+   for each FFT bin (56 for subcarriers in HT20 mode and 128 in HT40 mode)
 *) an index indicating the strongest FFT bin
 *) the maximum signal magnitude for each sample
 
-This information can be used to create an open source spectrum analyzer
+These information can be used to create an open source spectrum analyzer
 or interference classifier
 
 build

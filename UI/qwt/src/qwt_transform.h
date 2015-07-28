@@ -12,6 +12,14 @@
 
 #include "qwt_global.h"
 
+#ifndef QT_STATIC_CONST
+#define QT_STATIC_CONST static const
+#endif
+
+#ifndef QT_STATIC_CONST_IMPL
+#define QT_STATIC_CONST_IMPL const
+#endif
+
 /*!
    \brief A transformation between coordinate systems
 

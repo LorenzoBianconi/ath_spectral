@@ -19,6 +19,7 @@ AthScan::AthScan(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    _fft_curve = NULL;
     _fft_data = NULL;
     _min_freq = 2400;
     _max_freq = 6000;
@@ -340,7 +341,8 @@ int AthScan::clear()
         free(fft_ptr);
     }
 
-    _fft_curve->detach();
+    if (_fft_curve)
+        _fft_curve->detach();
 
     ui->minFreqSpinBox->setValue(_min_freq);
     ui->maxFreqSpinBox->setValue(_max_freq);
